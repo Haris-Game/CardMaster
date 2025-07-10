@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Flip Master Game</title>
+  <style>
+    body {
+      background: url("BG.jpg");
+      background-size: cover;
+      background-position: center;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      color: white;
+    }
+
+    #sidebar {
+      width: 250px;
+      padding: 20px;
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    #sidebar h3 {
+      margin-top: 0;
+    }
+
+    #main {
+      flex: 1;
+      text-align: center;
+    }
+
+    h2 {
+      margin: 15px 0;
+    }
+
+    #board {
+      height: 532px;
+      width: 475px;
+      margin: 15px auto;
+      display: flex;
+      flex-wrap: wrap;
+      background-color: whitesmoke;
+      border: 10px solid lightgrey;
+      border-radius: 10px;
+    }
+
+    .card {
+      height: 128px;
+      width: 90px;
+      margin: 2.5px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #info {
+      font-size: 1.2rem;
+    }
+
+    button {
+      margin: 10px 5px;
+      padding: 10px 20px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 5px;
+      background: crimson;
+      color: white;
+      cursor: pointer;
+    }
+
+    #winPopup {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 1000;
+      color: white;
+      text-align: center;
+      padding-top: 15%;
+      animation: fadeIn 1s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    #winPopup h1 {
+      font-size: 4rem;
+      margin-bottom: 10px;
+      color: gold;
+      text-shadow: 2px 2px 5px #000;
+    }
+
+    #winPopup p {
+      font-size: 1.5rem;
+    }
+
+    .balloon {
+      position: absolute;
+      width: 40px;
+      height: 60px;
+      background-color: red;
+      border-radius: 50% 50% 40% 40%;
+      animation: float 6s ease-in infinite;
+      z-index: 999;
+    }
+
+    @keyframes float {
+      0% { transform: translateY(100vh) scale(1); opacity: 1; }
+      100% { transform: translateY(-100vh) scale(1.2); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+
+
+  <!-- Main Area -->
+  <div id="main">
+    <h2>
+      Errors: <span id="errors">0</span> |
+      Time: <span id="timer">0</span>s |
+      Best: <span id="bestTime">--</span>s
+    </h2>
+
+    <div id="board"></div>
+
+    <div id="info">
+      <button onclick="location.reload()">🔄 Restart Game</button>
+      <button id="pauseBtn">⏸️ Pause</button>
+    </div>
+
+    <div id="winPopup">
+      <h1>🎉 Congratulations! 🎉</h1>
+      <p>You Win</p>
+      <p>Press Any Key or Tap to Play Again</p>
+    </div>
+
+    <!-- Sounds -->
+    <audio id="soundCorrect" src="correct.mp3"></audio>
+    <audio id="soundWrong" src="wrong.mp3"></audio>
+    <audio id="soundWin" src="win.mp3"></audio>
+    <audio id="bgMusic" src="Background.mp3" loop autoplay></audio>
+  </div>
+
+  <script>
+    let errors = 0;
+    let matchedPairs = 0;
+    let seconds = 0;
+    let paused = false;
+    let timerInterval;
+
+    const cardList = [
+      "darkness", "double", "fairy", "fighting", "fire",
+      "grass", "lightning", "metal", "psychic", "water"
+    ];
+
+    let cardSet;
+    let board = [];
+    const rows = 4;
+    const columns = 5;
+
+    let card1Selected = null;
+    let card2Selected = null;
+
+    const soundCorrect = document.getElementById("soundCorrect");
+    const soundWrong = document.getElementById("soundWrong");
+    soundCorrect.volume = 0.3; 
+    soundWrong.volume = 0.3;   
+
+    const soundWin = document.getElementById("soundWin");
+    const bgMusic = document.getElementById("bgMusic");
+
+    const bestTimeStored = localStorage.getItem("bestTime");
+    if (bestTimeStored) {
+      document.getElementById("bestTime").innerText = bestTimeStored;
+    }
+
+    window.onload = () => {
+      shuffleCards();
+      startGame();
+      startTimer();
+      bgMusic.volume = 0.4;
+    };
+
+    document.getElementById("pauseBtn").addEventListener("click", () => {
+      paused = !paused;
+      document.getElementById("pauseBtn").innerText = paused ? "▶️ Resume" : "⏸️ Pause";
+      if (paused) {
+        clearInterval(timerInterval);
+        bgMusic.pause();
+      } else {
+        startTimer();
+        bgMusic.play();
+      }
+    });
+
+    function shuffleCards() {
+      cardSet = cardList.concat(cardList);
+      for (let i = 0; i < cardSet.length; i++) {
+        let j = Math.floor(Math.random() * cardSet.length);
+        [cardSet[i], cardSet[j]] = [cardSet[j], cardSet[i]];
+      }
+    }
+
+    function startGame() {
+      for (let r = 0; r < rows; r++) {
+        let row = [];
+        for (let c = 0; c < columns; c++) {
+          let cardImg = cardSet.pop();
+          row.push(cardImg);
+
+          const card = document.createElement("img");
+          card.id = `${r}-${c}`;
+          card.src = cardImg + ".jpg";
+          card.classList.add("card");
+          card.addEventListener("click", selectCard);
+          document.getElementById("board").append(card);
+        }
+        board.push(row);
+      }
+      setTimeout(hideCards, 1000);
+    }
+
+    function hideCards() {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < columns; c++) {
+          document.getElementById(`${r}-${c}`).src = "back.jpg";
+        }
+      }
+    }
+
+    function selectCard() {
+      if (paused || !this.src.includes("back")) return;
+
+      if (!card1Selected) {
+        card1Selected = this;
+        let [r, c] = card1Selected.id.split("-");
+        card1Selected.src = board[r][c] + ".jpg";
+      } else if (!card2Selected && this !== card1Selected) {
+        card2Selected = this;
+        let [r, c] = card2Selected.id.split("-");
+        card2Selected.src = board[r][c] + ".jpg";
+        setTimeout(update, 800);
+      }
+    }
+
+    function update() {
+      if (card1Selected.src !== card2Selected.src) {
+        soundWrong.play();
+        card1Selected.src = "back.jpg";
+        card2Selected.src = "back.jpg";
+        errors++;
+        document.getElementById("errors").innerText = errors;
+      } else {
+        soundCorrect.play();
+        matchedPairs++;
+        if (matchedPairs === cardList.length) {
+          showWinPopup();
+        }
+      }
+      card1Selected = null;
+      card2Selected = null;
+    }
+
+    function showWinPopup() {
+      soundWin.play();
+      bgMusic.pause();
+bgMusic.currentTime = 0;
+
+      clearInterval(timerInterval);
+      updateBestTime(seconds);
+
+      for (let i = 0; i < 25; i++) {
+        const balloon = document.createElement("div");
+        balloon.classList.add("balloon");
+        balloon.style.left = Math.random() * 100 + "vw";
+        balloon.style.backgroundColor = getRandomColor();
+        document.body.appendChild(balloon);
+        setTimeout(() => balloon.remove(), 7000);
+      }
+
+      document.getElementById("winPopup").style.display = "block";
+      document.addEventListener("keydown", () => location.reload(), { once: true });
+      document.addEventListener("touchstart", () => location.reload(), { once: true });
+    }
+
+    function getRandomColor() {
+      const colors = ["#FF69B4", "#FFD700", "#00BFFF", "#32CD32", "#FF4500"];
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    function startTimer() {
+      timerInterval = setInterval(() => {
+        seconds++;
+        document.getElementById("timer").innerText = seconds;
+      }, 1000);
+    }
+
+    function updateBestTime(currentTime) {
+      const best = localStorage.getItem("bestTime");
+      if (!best || currentTime < parseInt(best)) {
+        localStorage.setItem("bestTime", currentTime);
+        document.getElementById("bestTime").innerText = currentTime;
+      }
+    }
+    document.addEventListener("click", () => {
+  bgMusic.play().catch(e => console.log("Autoplay failed:", e));
+}, { once: true });
+
+  </script>
+</body>
+</html>
