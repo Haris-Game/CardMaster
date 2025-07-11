@@ -124,9 +124,9 @@
   <!-- Main Area -->
   <div id="main">
     <h2>
-      Errors: <span id="errors">0</span> |
       Time: <span id="timer">0</span>s |
-      Best: <span id="bestTime">--</span>s
+      Best: <span id="bestTime">--</span>s |
+      Oops: <span id="errors">0</span> 
     </h2>
 
     <div id="board"></div>
@@ -225,7 +225,7 @@
         }
         board.push(row);
       }
-      setTimeout(hideCards, 1000);
+      setTimeout(hideCards, 3000);
     }
 
     function hideCards() {
